@@ -497,7 +497,6 @@ cat > "${CONFIG_PATH}" <<EOF
 name = "$(write_toml_string "${PROJECT_NAME}")"
 compatibility_date = "$(write_toml_string "${COMPATIBILITY_DATE}")"
 pages_build_output_dir = "site"
-keep_vars = true
 
 [[kv_namespaces]]
 binding = "KV"
