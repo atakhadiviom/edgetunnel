@@ -7,12 +7,11 @@ WORK_DIR="${TMP_DIR}/work"
 ASSETS_DIR="${WORK_DIR}/site"
 CONFIG_PATH="${WORK_DIR}/wrangler.toml"
 GENERATED_VALUES=""
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RAW_BASE_URL="${EDGETUNNEL_RAW_BASE:-https://raw.githubusercontent.com/atakhadiviom/edgetunnel/main}"
 SOURCE_DIR="${TMP_DIR}/source"
 WORKER_ENTRY=""
-PROJECT_NAME_SOURCE="$(basename "${REPO_ROOT}")"
+REPO_ROOT=""
+PROJECT_NAME_SOURCE="$(printf '%s' "${RAW_BASE_URL}" | awk -F/ '{print $(NF-1)}')"
 
 cleanup() {
     if [ "${KEEP_TMP_DIR:-0}" = "1" ]; then
@@ -26,6 +25,12 @@ trap cleanup EXIT
 
 mkdir -p "${WORK_DIR}" "${ASSETS_DIR}" "${SOURCE_DIR}"
 
+INPUT_FD=0
+if [ -r /dev/tty ]; then
+    exec 3</dev/tty
+    INPUT_FD=3
+fi
+
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
@@ -35,10 +40,25 @@ if ! command_exists curl; then
     exit 1
 fi
 
-if [ -f "${REPO_ROOT}/_worker.js" ]; then
+LOCAL_REPO_ROOT=""
+SCRIPT_PATH="${BASH_SOURCE[0]-}"
+if [ -n "${SCRIPT_PATH}" ] && [ "${SCRIPT_PATH}" != "bash" ] && [ -f "${SCRIPT_PATH}" ]; then
+    CANDIDATE_SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
+    CANDIDATE_REPO_ROOT="$(cd "${CANDIDATE_SCRIPT_DIR}/.." && pwd)"
+    if [ -f "${CANDIDATE_REPO_ROOT}/_worker.js" ]; then
+        LOCAL_REPO_ROOT="${CANDIDATE_REPO_ROOT}"
+    fi
+fi
+
+if [ -z "${LOCAL_REPO_ROOT}" ] && [ -f "${PWD}/_worker.js" ]; then
+    LOCAL_REPO_ROOT="${PWD}"
+fi
+
+if [ -n "${LOCAL_REPO_ROOT}" ]; then
+    REPO_ROOT="${LOCAL_REPO_ROOT}"
+    PROJECT_NAME_SOURCE="$(basename "${REPO_ROOT}")"
     WORKER_ENTRY="${REPO_ROOT}/_worker.js"
 else
-    PROJECT_NAME_SOURCE="$(printf '%s' "${RAW_BASE_URL}" | awk -F/ '{print $(NF-1)}')"
     REPO_ROOT="${SOURCE_DIR}"
     WORKER_ENTRY="${REPO_ROOT}/_worker.js"
     echo "Fetching project files from ${RAW_BASE_URL}..."
@@ -89,7 +109,7 @@ prompt_with_default() {
     local label="$1"
     local default_value="$2"
     local value
-    read -r -p "${label} [${default_value}]: " value || true
+    read -r -u "${INPUT_FD}" -p "${label} [${default_value}]: " value || true
     if [ -z "${value}" ]; then
         value="${default_value}"
     fi
@@ -100,7 +120,7 @@ prompt_secret() {
     local label="$1"
     local value=""
     while [ -z "${value}" ]; do
-        read -r -s -p "${label}: " value || true
+        read -r -s -u "${INPUT_FD}" -p "${label}: " value || true
         printf '\n'
         if [ -z "${value}" ]; then
             echo "This value cannot be empty."
@@ -113,7 +133,7 @@ prompt_required_text() {
     local label="$1"
     local value=""
     while [ -z "${value}" ]; do
-        read -r -p "${label}: " value || true
+        read -r -u "${INPUT_FD}" -p "${label}: " value || true
         if [ -z "${value}" ]; then
             echo "This value cannot be empty."
         fi
@@ -137,7 +157,7 @@ prompt_mode() {
     fi
 
     while true; do
-        read -r -p "${label} ${options} [${default_choice}]: " answer || true
+        read -r -u "${INPUT_FD}" -p "${label} ${options} [${default_choice}]: " answer || true
         answer="$(printf '%s' "${answer:-${default_choice}}" | tr '[:upper:]' '[:lower:]')"
         case "${answer}" in
             m|manual)
@@ -167,7 +187,7 @@ prompt_yes_no() {
     local answer=""
 
     while true; do
-        read -r -p "${label} [y/n] [${default_answer}]: " answer || true
+        read -r -u "${INPUT_FD}" -p "${label} [y/n] [${default_answer}]: " answer || true
         answer="$(printf '%s' "${answer:-${default_answer}}" | tr '[:upper:]' '[:lower:]')"
         case "${answer}" in
             y|yes)
@@ -240,7 +260,7 @@ prompt_uuid_v4() {
     local label="$1"
     local value=""
     while true; do
-        read -r -p "${label}: " value || true
+        read -r -u "${INPUT_FD}" -p "${label}: " value || true
         value="$(printf '%s' "${value}" | tr '[:upper:]' '[:lower:]')"
         if is_uuid_v4 "${value}"; then
             printf '%s' "${value}"
