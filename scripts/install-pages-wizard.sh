@@ -2,33 +2,17 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-WORKER_ENTRY="${REPO_ROOT}/_worker.js"
-
-if [ ! -f "${WORKER_ENTRY}" ]; then
-    echo "Could not find ${WORKER_ENTRY}."
-    exit 1
-fi
-
-if [ -f "${REPO_ROOT}/wrangler.toml" ]; then
-    DEFAULT_COMPATIBILITY_DATE="$(awk -F'"' '/^compatibility_date[[:space:]]*=/{print $2; exit}' "${REPO_ROOT}/wrangler.toml")"
-else
-    DEFAULT_COMPATIBILITY_DATE=""
-fi
-DEFAULT_COMPATIBILITY_DATE="${DEFAULT_COMPATIBILITY_DATE:-$(date -u +%F)}"
-
-DEFAULT_PROJECT_NAME="$(basename "${REPO_ROOT}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g; s/--*/-/g; s/^-//; s/-$//')"
-DEFAULT_PROJECT_NAME="${DEFAULT_PROJECT_NAME:-edgetunnel}"
-DEFAULT_BRANCH="$(git -C "${REPO_ROOT}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
-DEFAULT_KV_NAMESPACE="${DEFAULT_PROJECT_NAME}-kv"
-
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/edgetunnel-pages.XXXXXX")"
 WORK_DIR="${TMP_DIR}/work"
 ASSETS_DIR="${WORK_DIR}/site"
 CONFIG_PATH="${WORK_DIR}/wrangler.toml"
 GENERATED_VALUES=""
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+RAW_BASE_URL="${EDGETUNNEL_RAW_BASE:-https://raw.githubusercontent.com/atakhadiviom/edgetunnel/main}"
+SOURCE_DIR="${TMP_DIR}/source"
+WORKER_ENTRY=""
+PROJECT_NAME_SOURCE="$(basename "${REPO_ROOT}")"
 
 cleanup() {
     if [ "${KEEP_TMP_DIR:-0}" = "1" ]; then
@@ -40,11 +24,45 @@ cleanup() {
 
 trap cleanup EXIT
 
-mkdir -p "${WORK_DIR}" "${ASSETS_DIR}"
+mkdir -p "${WORK_DIR}" "${ASSETS_DIR}" "${SOURCE_DIR}"
 
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
+
+if ! command_exists curl; then
+    echo "curl is required."
+    exit 1
+fi
+
+if [ -f "${REPO_ROOT}/_worker.js" ]; then
+    WORKER_ENTRY="${REPO_ROOT}/_worker.js"
+else
+    PROJECT_NAME_SOURCE="$(printf '%s' "${RAW_BASE_URL}" | awk -F/ '{print $(NF-1)}')"
+    REPO_ROOT="${SOURCE_DIR}"
+    WORKER_ENTRY="${REPO_ROOT}/_worker.js"
+    echo "Fetching project files from ${RAW_BASE_URL}..."
+    curl -fsSL "${RAW_BASE_URL}/_worker.js" -o "${WORKER_ENTRY}"
+    curl -fsSL "${RAW_BASE_URL}/wrangler.toml" -o "${REPO_ROOT}/wrangler.toml" || true
+fi
+
+if [ ! -f "${WORKER_ENTRY}" ]; then
+    echo "Could not prepare _worker.js."
+    exit 1
+fi
+
+if [ -f "${REPO_ROOT}/wrangler.toml" ]; then
+    DEFAULT_COMPATIBILITY_DATE="$(awk -F'"' '/^compatibility_date[[:space:]]*=/{print $2; exit}' "${REPO_ROOT}/wrangler.toml")"
+else
+    DEFAULT_COMPATIBILITY_DATE=""
+fi
+DEFAULT_COMPATIBILITY_DATE="${DEFAULT_COMPATIBILITY_DATE:-$(date -u +%F)}"
+
+DEFAULT_PROJECT_NAME="$(printf '%s' "${PROJECT_NAME_SOURCE}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g; s/--*/-/g; s/^-//; s/-$//')"
+DEFAULT_PROJECT_NAME="${DEFAULT_PROJECT_NAME:-edgetunnel}"
+DEFAULT_BRANCH="$(git -C "${REPO_ROOT}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
+DEFAULT_KV_NAMESPACE="${DEFAULT_PROJECT_NAME}-kv"
 
 if command_exists wrangler; then
     WRANGLER_CMD=(wrangler)
@@ -235,15 +253,12 @@ prompt_uuid_v4() {
 extract_kv_namespace_id() {
     local title="$1"
     local json="$2"
-    printf '%s\n' "${json}" | awk -v title="${title}" '
-        BEGIN { RS="}"; FS="\n" }
-        index($0, "\"title\": \"" title "\"") {
-            if (match($0, /"id": "([^"]+)"/, hit)) {
-                print hit[1]
-                exit
-            }
-        }
-    '
+    printf '%s' "${json}" \
+        | tr -d '[:space:]' \
+        | tr '}' '\n' \
+        | grep -F "\"title\":\"${title}\"" \
+        | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' \
+        | head -n 1
 }
 
 put_pages_secret() {
