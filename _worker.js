@@ -7,6 +7,357 @@ let config_JSON, 反代IP = '', 启用SOCKS5反代 = null, 启用SOCKS5全局反
 let 缓存反代IP, 缓存反代解析数组, 缓存反代数组索引 = 0, 启用反代兜底 = true, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io';
+const 面板语言Cookie名 = 'panel_lang';
+const 支持的面板语言 = new Set(['zh', 'en', 'fa']);
+const 面板语言元信息 = {
+	zh: { 代码: 'zh-CN', 方向: 'ltr', 名称: '简体中文', 标签: '语言' },
+	en: { 代码: 'en', 方向: 'ltr', 名称: 'English', 标签: 'Language' },
+	fa: { 代码: 'fa', 方向: 'rtl', 名称: 'فارسی', 标签: 'زبان' },
+};
+const 面板翻译词条 = [
+	['很遗憾，由于网络环境差异，此项目暂不适配伊朗用户的使用体验。为了给您提供更稳定、更优化的服务，我们强烈建议您使用由伊朗本地群组维护的专业项目。', 'Due to regional network differences, this project is not currently optimized for users in Iran. For a more stable experience, we strongly recommend using the project maintained by the local Iranian community.', 'به دلیل تفاوت شرایط شبکه در منطقه، این پروژه در حال حاضر برای کاربران ایران بهینه نشده است. برای تجربه‌ای پایدارتر، قویا پیشنهاد می‌کنیم از پروژه‌ای که توسط جامعه محلی ایران نگه‌داری می‌شود استفاده کنید.'],
+	['重置配置将会初始化所有设置，包括订阅生成、节点信息、反代配置等。此操作不可撤销，请谨慎操作。', 'Resetting will initialize all settings, including subscription generation, node information, and proxy settings. This action cannot be undone.', 'بازنشانی همه تنظیمات را به حالت اولیه برمی‌گرداند؛ از جمله ساخت اشتراک، اطلاعات نود و تنظیمات پروکسی. این عملیات قابل بازگشت نیست.'],
+	['清除 Telegram Bot 通知配置后，将无法继续接收 Telegram 消息通知。此操作不可撤销，请谨慎操作。', 'After clearing the Telegram Bot notification settings, Telegram alerts will stop working. This action cannot be undone.', 'پس از پاک کردن تنظیمات اعلان Telegram Bot، دیگر اعلان‌های تلگرام دریافت نخواهید کرد. این عملیات قابل بازگشت نیست.'],
+	['清除 Cloudflare 配置后，将无法继续统计 Workers/Pages 的请求数。此操作不可撤销，请谨慎操作。', 'After clearing the Cloudflare settings, Workers/Pages request usage can no longer be counted. This action cannot be undone.', 'پس از پاک کردن تنظیمات Cloudflare، شمارش درخواست‌های Workers/Pages دیگر ممکن نخواهد بود. این عملیات قابل بازگشت نیست.'],
+	['请输入 优选API地址 或 需要汇聚的订阅地址', 'Enter the preferred API URL or the subscription URL to aggregate', 'نشانی API ترجیحی یا نشانی اشتراکی که باید تجمیع شود را وارد کنید'],
+	['链接过长，无法生成二维码。联系项目作者修复问题。', 'The link is too long to generate a QR code. Please contact the project author.', 'پیوند بیش از حد طولانی است و نمی‌توان برای آن QR code ساخت. لطفا با سازنده پروژه تماس بگیرید.'],
+	['当前后端版本暂不支持HTTPS反代', 'The current backend version does not support HTTPS proxying yet', 'نسخه فعلی بک‌اند هنوز از پروکسی HTTPS پشتیبانی نمی‌کند'],
+	['✅ 配置已保存，请更新订阅，才能获取最新节点内容！', 'Configuration saved. Update the subscription to get the latest nodes.', 'تنظیمات ذخیره شد. برای دریافت جدیدترین نودها، اشتراک را به‌روزرسانی کنید.'],
+	['请先点击"可用性验证"按钮验证配置', 'Please click "Validate" first to verify the configuration', 'ابتدا روی «اعتبارسنجی» بزنید تا تنظیمات بررسی شوند'],
+	['请先点击"可用性验证"按钮通过验证', 'Please pass validation first by clicking "Validate"', 'ابتدا باید با زدن «اعتبارسنجی» بررسی را با موفقیت پشت سر بگذارید'],
+	['✅ 已自动识别URL中的端口号: ', 'Detected port from URL automatically: ', 'شماره پورت از نشانی به‌صورت خودکار تشخیص داده شد: '],
+	['，并已移除port参数', ', and the explicit port parameter was removed', ' و پارامتر port حذف شد'],
+	['⚠️ 清除 Telegram 配置', '⚠️ Clear Telegram Configuration', '⚠️ پاک کردن تنظیمات تلگرام'],
+	['⚠️ 清除 Cloudflare 配置', '⚠️ Clear Cloudflare Configuration', '⚠️ پاک کردن تنظیمات Cloudflare'],
+	['⚠️ 重置配置', '⚠️ Reset Configuration', '⚠️ بازنشانی تنظیمات'],
+	['🤖 TelegramBot 通知参数配置', '🤖 TelegramBot Notification Settings', '🤖 تنظیمات اعلان TelegramBot'],
+	['☁️ Workers/Pages 可用请求数统计', '☁️ Workers/Pages Request Usage', '☁️ آمار درخواست‌های Workers/Pages'],
+	['💡 保存提示：仅保存延迟最低的前16个优选IP', '💡 Save tip: only the 16 lowest-latency preferred IPs will be saved', '💡 نکته ذخیره‌سازی: فقط ۱۶ IP برتر با کمترین تأخیر ذخیره می‌شوند'],
+	['⚙️ 订阅转换后端', '⚙️ Subscription Converter Backend', '⚙️ بک‌اند تبدیل اشتراک'],
+	['⚙️ 详细配置信息', '⚙️ Detailed Configuration', '⚙️ پیکربندی پیشرفته'],
+	['⚙️ 路径模板配置', '⚙️ Path Template Configuration', '⚙️ تنظیم الگوی مسیر'],
+	['🔄 订阅转换配置', '🔄 Subscription Conversion', '🔄 تنظیمات تبدیل اشتراک'],
+	['📋 获取节点链接', '📋 Node Links', '📋 پیوندهای نود'],
+	['🌍 当前网络信息', '🌍 Current Network Info', '🌍 اطلاعات فعلی شبکه'],
+	['🚀 在线优选', '🚀 Online Optimization', '🚀 بهینه‌سازی آنلاین'],
+	['🔌 订阅接口', '🔌 Subscription API', '🔌 رابط اشتراک'],
+	['💎 生成专属 Snippet.js 源码', '💎 Generate Dedicated Snippet.js Source', '💎 ساخت کد اختصاصی Snippet.js'],
+	['管理后台', 'Admin Panel', 'پنل مدیریت'],
+	['登录设置页面', 'Sign In', 'ورود'],
+	['请输入您的管理员密码', 'Enter your admin password', 'رمز عبور مدیر را وارد کنید'],
+	['立即登录', 'Sign in now', 'اکنون وارد شوید'],
+	['地域访问限制', 'Regional Access Notice', 'محدودیت دسترسی منطقه‌ای'],
+	['⭐ 使用 BPB-Worker-Panel', '⭐ Use BPB-Worker-Panel', '⭐ استفاده از BPB-Worker-Panel'],
+	['继续使用当前项目', 'Continue with this project', 'ادامه با همین پروژه'],
+	['密码错误，请重试', 'Incorrect password. Please try again.', 'رمز عبور اشتباه است. دوباره تلاش کنید.'],
+	['登录失败，请重试', 'Sign-in failed. Please try again.', 'ورود ناموفق بود. دوباره تلاش کنید.'],
+	['网络错误，请检查连接', 'Network error. Please check your connection.', 'خطای شبکه. اتصال خود را بررسی کنید.'],
+	['🐣 我是小白！我想简单点！', '🐣 Beginner mode', '🐣 حالت ساده'],
+	['🚀 我是高手！我就要折腾！', '🚀 Advanced mode', '🚀 حالت پیشرفته'],
+	['👋退出登录', '👋 Sign out', '👋 خروج'],
+	['Workers/Pages 请求使用情况', 'Workers/Pages Request Usage', 'مصرف درخواست‌های Workers/Pages'],
+	['每日请求数重置清零：', 'Daily request counter resets:', 'بازنشانی روزانه شمارنده درخواست‌ها:'],
+	['距离重置还有', 'Time until reset', 'زمان باقی‌مانده تا بازنشانی'],
+	['小时', 'h', 'ساعت'],
+	['分', 'm', 'دقیقه'],
+	['秒', 's', 'ثانیه'],
+	['今日使用情况总计：', 'Total usage today:', 'مجموع مصرف امروز:'],
+	['当前网络信息', 'Current Network Info', 'اطلاعات فعلی شبکه'],
+	['国内测试', 'Domestic Test', 'آزمون داخلی'],
+	['国外测试', 'Overseas Test', 'آزمون خارجی'],
+	['墙外测试', 'External Access Test', 'آزمون بیرون از فیلتر'],
+	['漏网之鱼', 'Unblocked Route', 'مسیر بدون مسدودسازی'],
+	['节点链接格式', 'Node Link Format', 'قالب پیوند نود'],
+	['📱二维码', '📱 QR Code', '📱 QR Code'],
+	['复制节点', 'Copy Node', 'کپی نود'],
+	['自适应订阅', 'Adaptive Subscription', 'اشتراک تطبیقی'],
+	['复制订阅', 'Copy Subscription', 'کپی اشتراک'],
+	['Base64订阅', 'Base64 Subscription', 'اشتراک Base64'],
+	['Clash订阅', 'Clash Subscription', 'اشتراک Clash'],
+	['SingBox订阅', 'SingBox Subscription', 'اشتراک SingBox'],
+	['⚡️ 优选订阅生成', '⚡️ Preferred Subscription Builder', '⚡️ ساخت اشتراک بهینه'],
+	['优选订阅模式', 'Preferred Subscription Mode', 'حالت اشتراک بهینه'],
+	['优选订阅生成器', 'Preferred Subscription Generator', 'سازنده اشتراک بهینه'],
+	['随机优选', 'Random Preferred IPs', 'انتخاب تصادفی IP بهینه'],
+	['自定义订阅（支持汇聚订阅）', 'Custom Subscription (supports aggregation)', 'اشتراک سفارشی (با پشتیبانی از تجمیع)'],
+	['随机优选数量', 'Random Preferred Count', 'تعداد IP های تصادفی'],
+	['指定优选端口', 'Preferred Port', 'پورت ترجیحی'],
+	['随机端口', 'Random Port', 'پورت تصادفی'],
+	['自定义优选地址', 'Custom Preferred Addresses', 'نشانی‌های بهینه سفارشی'],
+	['在线优选', 'Online Optimization', 'بهینه‌سازی آنلاین'],
+	['订阅接口', 'Subscription API', 'رابط اشتراک'],
+	['取消', 'Cancel', 'انصراف'],
+	['保存', 'Save', 'ذخیره'],
+	['订阅名称', 'Subscription Name', 'نام اشتراک'],
+	['传输协议', 'Transport Protocol', 'پروتکل انتقال'],
+	['加密方式', 'Encryption Method', 'روش رمزنگاری'],
+	['关闭', 'Close', 'بستن'],
+	['跳过证书验证', 'Skip Certificate Verification', 'نادیده گرفتن اعتبارسنجی گواهی'],
+	['启用0-RTT(ed=2560)', 'Enable 0-RTT (ed=2560)', 'فعال‌سازی 0-RTT (ed=2560)'],
+	['启用', 'Enable', 'فعال'],
+	['订阅转换后端', 'Subscription Converter Backend', 'بک‌اند تبدیل اشتراک'],
+	['订阅转换配置文件', 'Subscription Conversion Config File', 'فایل تنظیمات تبدیل اشتراک'],
+	['参数配置', 'Settings', 'تنظیمات'],
+	['清除配置', 'Clear Settings', 'پاک کردن تنظیمات'],
+	['全部日志', 'All Logs', 'همه گزارش‌ها'],
+	['当前版本', 'Current Version', 'نسخه فعلی'],
+	['最新版本:', 'Latest Version:', 'آخرین نسخه:'],
+	['当前版本:', 'Current Version:', 'نسخه فعلی:'],
+	['需要更新', 'Update available', 'نیاز به به‌روزرسانی'],
+	['复制最新Worker.js源码 到剪贴板', 'Copy latest Worker.js source', 'کپی آخرین کد Worker.js'],
+	['下载最新Pages.zip源码 上传部署', 'Download latest Pages.zip source', 'دانلود آخرین Pages.zip'],
+	['关于 跳过证书验证', 'About Skip Certificate Verification', 'درباره نادیده گرفتن اعتبارسنجی گواهی'],
+	['确认开启', 'Enable anyway', 'فعال‌سازی با وجود هشدار'],
+	['确定是否完全重置配置？', 'Reset all configuration?', 'همه تنظیمات بازنشانی شود؟'],
+	['确定重置', 'Confirm Reset', 'تأیید بازنشانی'],
+	['取消重置', 'Cancel Reset', 'لغو بازنشانی'],
+	['确定是否清除 Telegram 通知配置？', 'Clear Telegram notification settings?', 'تنظیمات اعلان تلگرام پاک شود؟'],
+	['确定清除', 'Confirm Clear', 'تأیید پاک‌سازی'],
+	['确定是否清除 Cloudflare 通知配置？', 'Clear Cloudflare notification settings?', 'تنظیمات اعلان Cloudflare پاک شود؟'],
+	['所有操作日志', 'All Activity Logs', 'همه گزارش‌های عملیات'],
+	['-- 加载中，请稍候 --', '-- Loading, please wait --', '-- در حال بارگذاری، لطفا صبر کنید --'],
+	['自定义后端地址', 'Custom Backend URL', 'نشانی بک‌اند سفارشی'],
+	['输入订阅转换后端地址', 'Enter subscription converter backend URL', 'نشانی بک‌اند تبدیل اشتراک را وارد کنید'],
+	['可用性验证', 'Validate', 'اعتبارسنجی'],
+	['确定', 'Confirm', 'تأیید'],
+	['输入Telegram Bot Token', 'Enter Telegram Bot Token', 'توکن Telegram Bot را وارد کنید'],
+	['输入Chat ID', 'Enter Chat ID', 'Chat ID را وارد کنید'],
+	['请选择统计方案', 'Select a usage method', 'روش آمار را انتخاب کنید'],
+	['输入Cloudflare账户邮箱', 'Enter Cloudflare account email', 'ایمیل حساب Cloudflare را وارد کنید'],
+	['输入Global API Key', 'Enter Global API Key', 'Global API Key را وارد کنید'],
+	['输入Account ID', 'Enter Account ID', 'Account ID را وارد کنید'],
+	['输入API Token', 'Enter API Token', 'API Token را وارد کنید'],
+	['API令牌权限 使用 "阅读分析数据和日志" 模板即可', 'For the API token, the "Read analytics data and logs" template is enough', 'برای API Token، قالب «خواندن داده‌های آماری و گزارش‌ها» کافی است'],
+	['UsageAPI地址', 'UsageAPI URL', 'نشانی UsageAPI'],
+	['正在检测您的网络环境...', 'Detecting your network environment...', 'در حال بررسی وضعیت شبکه شما...'],
+	['IP库：', 'IP Library:', 'کتابخانه IP:'],
+	['端口：', 'Port:', 'پورت:'],
+	['测试线程数：', 'Concurrency:', 'تعداد رشته‌های آزمون:'],
+	['0/512 (0.00%) - 成功: 0, 失败: 0', '0/512 (0.00%) - Success: 0, Failed: 0', '0/512 (0.00%) - موفق: 0، ناموفق: 0'],
+	['开始优选', 'Start Optimization', 'شروع بهینه‌سازی'],
+	['覆盖保存', 'Replace & Save', 'ذخیره با جایگزینی'],
+	['追加保存', 'Append & Save', 'ذخیره به‌صورت افزودن'],
+	['默认端口:', 'Default Port:', 'پورت پیش‌فرض:'],
+	['将优选作为PROXYIP', 'Use preferred result as PROXYIP', 'استفاده از نتیجه بهینه به‌عنوان PROXYIP'],
+	['接口结果:', 'API Results:', 'نتیجه API:'],
+	['API接口结果', 'API Results', 'نتیجه API'],
+	['接口返回结果将显示在这里，每行一个地址', 'API results will appear here, one address per line', 'نتیجه API در اینجا نمایش داده می‌شود، هر خط یک نشانی'],
+	['追加API', 'Append API URL', 'افزودن API'],
+	['追加结果', 'Append Results', 'افزودن نتیجه'],
+	['暂无可复制的最新 Worker.js 源码', 'No latest Worker.js source is available to copy', 'کد Worker.js جدیدی برای کپی وجود ندارد'],
+	['✅ 已复制最新 Worker.js 源码到剪贴板', '✅ Latest Worker.js source copied to clipboard', '✅ آخرین کد Worker.js در کلیپ‌بورد کپی شد'],
+	['复制失败，请手动复制源码', 'Copy failed. Please copy the source manually.', 'کپی ناموفق بود. لطفا کد را دستی کپی کنید.'],
+	['浏览器拦截了新窗口，请允许弹窗后再试', 'The browser blocked the popup. Allow popups and try again.', 'مرورگر پنجره جدید را مسدود کرد. اجازه پنجره بازشو را بدهید و دوباره تلاش کنید.'],
+	['加载配置失败: ', 'Failed to load configuration: ', 'بارگذاری تنظیمات ناموفق بود: '],
+	['加载配置失败', 'Failed to load configuration', 'بارگذاری تنظیمات ناموفق بود'],
+	['加载自定义IP失败', 'Failed to load custom IPs', 'بارگذاری IP های سفارشی ناموفق بود'],
+	['📋 已复制到剪贴板', '📋 Copied to clipboard', '📋 در کلیپ‌بورد کپی شد'],
+	['复制失败，请手动复制代码', 'Copy failed. Please copy the code manually.', 'کپی ناموفق بود. لطفا کد را دستی کپی کنید.'],
+	['复制失败，请手动复制UUID', 'Copy failed. Please copy the UUID manually.', 'کپی ناموفق بود. لطفا UUID را دستی کپی کنید.'],
+	['复制失败', 'Copy failed', 'کپی ناموفق بود'],
+	['请至少输入一个域名', 'Please enter at least one domain', 'حداقل یک دامنه وارد کنید'],
+	['域名列表已更新，请保存配置', 'Domain list updated. Please save the configuration.', 'فهرست دامنه‌ها به‌روزرسانی شد. لطفا تنظیمات را ذخیره کنید.'],
+	['随机优选数量不能为空', 'Random preferred count cannot be empty', 'تعداد انتخاب تصادفی نمی‌تواند خالی باشد'],
+	['自定义优选地址不能为空', 'Custom preferred addresses cannot be empty', 'نشانی‌های بهینه سفارشی نمی‌توانند خالی باشند'],
+	['优选订阅生成器地址不能为空', 'Preferred subscription generator URL cannot be empty', 'نشانی سازنده اشتراک بهینه نمی‌تواند خالی باشد'],
+	['保存自定义IP失败', 'Failed to save custom IPs', 'ذخیره IP های سفارشی ناموفق بود'],
+	['PROXYIP地址不能为空', 'PROXYIP address cannot be empty', 'نشانی PROXYIP نمی‌تواند خالی باشد'],
+	['SOCKS5地址不能为空', 'SOCKS5 address cannot be empty', 'نشانی SOCKS5 نمی‌تواند خالی باشد'],
+	['HTTP地址不能为空', 'HTTP address cannot be empty', 'نشانی HTTP نمی‌تواند خالی باشد'],
+	['HTTPS地址不能为空', 'HTTPS address cannot be empty', 'نشانی HTTPS نمی‌تواند خالی باشد'],
+	['😢 ', '😢 ', '😢 '],
+	['，请检测网络环境，或关闭代理后再试！', '. Please check the network or retry with the proxy disabled.', '. لطفا وضعیت شبکه را بررسی کنید یا بدون پروکسی دوباره تلاش کنید.'],
+	['配置已刷新', 'Configuration refreshed', 'تنظیمات بازخوانی شد'],
+	['配置已重置为默认值', 'Configuration reset to defaults', 'تنظیمات به حالت پیش‌فرض بازنشانی شد'],
+	['重置失败: ', 'Reset failed: ', 'بازنشانی ناموفق بود: '],
+	['已切换到高手模式，显示所有功能', 'Switched to advanced mode. All features are now visible.', 'به حالت پیشرفته تغییر کرد. همه قابلیت‌ها نمایش داده می‌شوند.'],
+	['已切换到小白模式，只显示常用功能', 'Switched to beginner mode. Only common features are shown.', 'به حالت ساده تغییر کرد. فقط قابلیت‌های رایج نمایش داده می‌شوند.'],
+	['暂无可复制代码', 'No code available to copy', 'کدی برای کپی وجود ندارد'],
+	['📋 Snippet.js 代码已复制', '📋 Snippet.js code copied', '📋 کد Snippet.js کپی شد'],
+	['UUID为空，无法生成专属代码', 'UUID is empty. Dedicated code cannot be generated.', 'UUID خالی است و کد اختصاصی ساخته نمی‌شود.'],
+	['Snippets.js专属代码已生成', 'Dedicated Snippet.js code generated', 'کد اختصاصی Snippet.js ساخته شد'],
+	['生成失败: ', 'Generation failed: ', 'ساخت ناموفق بود: '],
+	['UUID为空，无法复制', 'UUID is empty and cannot be copied', 'UUID خالی است و قابل کپی نیست'],
+	['📋 已复制UUID的值', '📋 UUID copied', '📋 UUID کپی شد'],
+	['加载日志失败: ', 'Failed to load logs: ', 'بارگذاری گزارش‌ها ناموفق بود: '],
+	['查询IP详细信息失败', 'Failed to fetch IP details', 'دریافت جزئیات IP ناموفق بود'],
+	['当前路径模板存在缺失 {{IP:PORT}} 占位符', 'The current path template is missing the {{IP:PORT}} placeholder', 'الگوی مسیر فعلی فاقد جای‌نگهدار {{IP:PORT}} است'],
+	['保存路径模板失败: ', 'Failed to save the path template: ', 'ذخیره الگوی مسیر ناموفق بود: '],
+	['Telegram 配置已清除', 'Telegram settings cleared', 'تنظیمات تلگرام پاک شد'],
+	['Cloudflare 配置已清除', 'Cloudflare settings cleared', 'تنظیمات Cloudflare پاک شد'],
+	['请填写完整的Bot Token和Chat ID', 'Please provide both Bot Token and Chat ID', 'لطفا Bot Token و Chat ID را کامل وارد کنید'],
+	['✅ TelegramBot 配置已保存', '✅ TelegramBot settings saved', '✅ تنظیمات TelegramBot ذخیره شد'],
+	['❌ 保存失败: ', '❌ Save failed: ', '❌ ذخیره ناموفق بود: '],
+	['未知错误', 'Unknown error', 'خطای ناشناخته'],
+	['✅ Cloudflare 配置已保存', '✅ Cloudflare settings saved', '✅ تنظیمات Cloudflare ذخیره شد'],
+	['✅ 启用状态已保存', '✅ Enabled state saved', '✅ وضعیت فعال‌سازی ذخیره شد'],
+	['✅ Telegram 配置已清除，页面即将刷新...', '✅ Telegram settings cleared. The page will refresh...', '✅ تنظیمات تلگرام پاک شد. صفحه به‌زودی تازه‌سازی می‌شود...'],
+	['❌ 清除失败: ', '❌ Clear failed: ', '❌ پاک‌سازی ناموفق بود: '],
+	['❌ 清除出错: ', '❌ Clear error: ', '❌ خطا هنگام پاک‌سازی: '],
+	['✅ Cloudflare 配置已清除，页面即将刷新...', '✅ Cloudflare settings cleared. The page will refresh...', '✅ تنظیمات Cloudflare پاک شد. صفحه به‌زودی تازه‌سازی می‌شود...'],
+	['✅ GitHub链接已自动转换为raw格式', '✅ GitHub URL converted to raw format automatically', '✅ پیوند GitHub به‌صورت خودکار به قالب raw تبدیل شد'],
+	['✅ API接口验证成功！', '✅ API validation succeeded!', '✅ اعتبارسنجی API با موفقیت انجام شد'],
+	['❌ API接口验证失败，请检查接口', '❌ API validation failed. Please check the endpoint.', '❌ اعتبارسنجی API ناموفق بود. لطفا رابط را بررسی کنید.'],
+	['❌ 验证出错，请稍后重试', '❌ Validation error. Please retry later.', '❌ خطا در اعتبارسنجی. کمی بعد دوباره تلاش کنید.'],
+	['✅ API URL已追加到自定义优选地址', '✅ API URL appended to custom preferred addresses', '✅ نشانی API به آدرس‌های بهینه سفارشی افزوده شد'],
+	['✅ API结果已追加到自定义优选地址', '✅ API results appended to custom preferred addresses', '✅ نتیجه API به آدرس‌های بهینه سفارشی افزوده شد'],
+	['未能获取到IP列表', 'Could not retrieve the IP list', 'دریافت فهرست IP ناموفق بود'],
+	['优选完成！', 'Optimization complete!', 'بهینه‌سازی کامل شد!'],
+	['优选过程出错: ', 'Optimization failed: ', 'خطا در فرآیند بهینه‌سازی: '],
+	['请先选择一个国家', 'Please select a country first', 'ابتدا یک کشور انتخاب کنید'],
+	['已覆盖到自定义优选地址 (前16个)', 'Saved over custom preferred addresses (top 16)', 'روی آدرس‌های بهینه سفارشی ذخیره شد (۱۶ مورد اول)'],
+	['所有IP均已存在，未添加新内容', 'All IPs already exist. Nothing new was added.', 'همه IPها از قبل وجود دارند و مورد جدیدی اضافه نشد.'],
+	['最多只能选择 8 个 ProxyIP', 'You can select at most 8 ProxyIP entries', 'حداکثر ۸ ProxyIP می‌توانید انتخاب کنید'],
+	['该 IP 已在选择列表中', 'This IP is already selected', 'این IP از قبل انتخاب شده است'],
+	['请选择一个有效的', 'Please choose a valid ', 'لطفا یک مورد معتبر انتخاب کنید '],
+	['🎉 24小时内不会再提示', '🎉 No reminder will be shown again for 24 hours', '🎉 تا ۲۴ ساعت دیگر این یادآوری دوباره نمایش داده نمی‌شود'],
+	['我是小白，我看不懂', 'I am a beginner', 'من مبتدی هستم'],
+	['设置页面 - 管理后台', 'Settings - Admin Panel', 'صفحه تنظیمات - پنل مدیریت'],
+	[' 设置页面', ' Settings', ' صفحه تنظیمات'],
+	['配置已保存', 'Configuration saved', 'تنظیمات ذخیره شد'],
+	['配置不完整', 'Configuration is incomplete', 'تنظیمات ناقص است'],
+	['自定义IP已保存', 'Custom IPs saved', 'IP های سفارشی ذخیره شدند'],
+	['保存配置失败: ', 'Failed to save configuration: ', 'ذخیره تنظیمات ناموفق بود: '],
+	['保存自定义IP失败: ', 'Failed to save custom IPs: ', 'ذخیره IP های سفارشی ناموفق بود: '],
+	['不支持的POST请求路径', 'Unsupported POST request path', 'مسیر POST پشتیبانی نمی‌شود'],
+	['查询请求量失败，失败原因：', 'Failed to query usage. Reason: ', 'دریافت آمار ناموفق بود. دلیل: '],
+	['验证优选API失败，失败原因：', 'Preferred API validation failed. Reason: ', 'اعتبارسنجی API بهینه ناموفق بود. دلیل: '],
+	['缺少代理参数', 'Missing proxy parameter', 'پارامتر پروکسی وجود ندارد'],
+];
+const 面板翻译映射 = {
+	en: 面板翻译词条.map(([中文, 英文]) => [中文, 英文]).filter(([, 文案]) => typeof 文案 === 'string').sort((a, b) => b[0].length - a[0].length),
+	fa: 面板翻译词条.map(([中文, _, 波斯文]) => [中文, 波斯文]).filter(([, 文案]) => typeof 文案 === 'string').sort((a, b) => b[0].length - a[0].length),
+};
+
+function 解析Cookie对象(cookie文本 = '') {
+	return cookie文本.split(';').reduce((结果, 片段) => {
+		const 分隔位置 = 片段.indexOf('=');
+		if (分隔位置 === -1) return 结果;
+		const 键 = 片段.slice(0, 分隔位置).trim();
+		if (!键) return 结果;
+		const 原始值 = 片段.slice(分隔位置 + 1).trim();
+		try {
+			结果[键] = decodeURIComponent(原始值);
+		} catch {
+			结果[键] = 原始值;
+		}
+		return 结果;
+	}, {});
+}
+
+function 获取面板语言(request, url = null) {
+	const 当前URL = url || new URL(request.url);
+	const query语言 = 当前URL.searchParams.get('lang');
+	if (支持的面板语言.has(query语言)) return query语言;
+	const cookies = 解析Cookie对象(request.headers.get('Cookie') || '');
+	const cookie语言 = cookies[面板语言Cookie名];
+	if (支持的面板语言.has(cookie语言)) return cookie语言;
+	const acceptLanguage = (request.headers.get('Accept-Language') || '').toLowerCase();
+	if (/(^|[,; ])fa([-_][a-z]{2})?($|[,; ])/.test(acceptLanguage)) return 'fa';
+	if (/(^|[,; ])en([-_][a-z]{2})?($|[,; ])/.test(acceptLanguage)) return 'en';
+	return 'zh';
+}
+
+function 获取面板文案(语言, 中文, 英文 = 中文, 波斯文 = 中文) {
+	if (语言 === 'fa') return 波斯文;
+	if (语言 === 'en') return 英文;
+	return 中文;
+}
+
+function 合并Vary头(headers, ...字段列表) {
+	const 当前字段 = new Set((headers.get('Vary') || '').split(',').map(v => v.trim()).filter(Boolean));
+	for (const 字段 of 字段列表.flatMap(v => v.split(',')).map(v => v.trim()).filter(Boolean)) {
+		当前字段.add(字段);
+	}
+	if (当前字段.size > 0) headers.set('Vary', [...当前字段].join(', '));
+}
+
+function 构建面板语言注入代码(语言) {
+	const 元信息 = JSON.stringify(面板语言元信息);
+	return `<style id="edgetunnel-lang-style">
+	#edgetunnel-lang-switcher{position:fixed;top:16px;right:16px;z-index:2147483647;display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:14px;background:rgba(15,23,42,.78);color:#fff;box-shadow:0 14px 40px rgba(15,23,42,.25);backdrop-filter:blur(12px);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+	#edgetunnel-lang-switcher label{font-size:12px;font-weight:700;letter-spacing:.02em;opacity:.88}
+	#edgetunnel-lang-switcher select{appearance:none;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.12);color:#fff;border-radius:10px;padding:8px 30px 8px 10px;font-size:13px;font-weight:600;cursor:pointer}
+	#edgetunnel-lang-switcher option{color:#111827}
+	html[dir="rtl"] #edgetunnel-lang-switcher{left:16px;right:auto}
+	html[dir="rtl"] body{text-align:right}
+	html[dir="rtl"] input[type="text"],html[dir="rtl"] input[type="password"],html[dir="rtl"] input[type="number"],html[dir="rtl"] textarea{direction:ltr;text-align:left}
+	@media (max-width: 768px){#edgetunnel-lang-switcher{top:12px;right:12px;padding:8px 10px}html[dir="rtl"] #edgetunnel-lang-switcher{left:12px;right:auto}}
+</style>
+<script>
+(() => {
+	const current = ${JSON.stringify(语言)};
+	const cookieName = ${JSON.stringify(面板语言Cookie名)};
+	const meta = ${元信息};
+	const persist = (value) => {
+		document.cookie = cookieName + '=' + encodeURIComponent(value) + '; Path=/; Max-Age=31536000; SameSite=Lax';
+	};
+	const mount = () => {
+		if (document.getElementById('edgetunnel-lang-switcher')) return;
+		const active = meta[current] || meta.zh;
+		document.documentElement.lang = active.代码;
+		document.documentElement.dir = active.方向;
+		persist(current);
+		const container = document.createElement('div');
+		container.id = 'edgetunnel-lang-switcher';
+		const label = document.createElement('label');
+		label.htmlFor = 'edgetunnel-lang-select';
+		label.textContent = active.标签;
+		const select = document.createElement('select');
+		select.id = 'edgetunnel-lang-select';
+		for (const [value, info] of Object.entries(meta)) {
+			const option = document.createElement('option');
+			option.value = value;
+			option.textContent = info.名称;
+			select.appendChild(option);
+		}
+		select.value = current;
+		select.addEventListener('change', () => {
+			persist(select.value);
+			window.location.reload();
+		});
+		container.append(label, select);
+		document.body.appendChild(container);
+	};
+	if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount, { once: true });
+	else mount();
+})();
+</script>`;
+}
+
+function 应用面板翻译(html, 语言) {
+	const 元信息 = 面板语言元信息[语言] || 面板语言元信息.zh;
+	let 结果 = html;
+	if (/<html\b[^>]*\blang=/i.test(结果)) {
+		结果 = 结果.replace(/<html([^>]*)lang="[^"]*"([^>]*)>/i, `<html$1lang="${元信息.代码}" dir="${元信息.方向}"$2>`);
+	} else {
+		结果 = 结果.replace(/<html([^>]*)>/i, `<html$1 lang="${元信息.代码}" dir="${元信息.方向}">`);
+	}
+	if (语言 !== 'zh' && 面板翻译映射[语言]) {
+		for (const [原文, 译文] of 面板翻译映射[语言]) {
+			if (译文 === 原文 || !译文) continue;
+			结果 = 结果.split(原文).join(译文);
+		}
+	}
+	const 注入代码 = 构建面板语言注入代码(语言);
+	if (结果.includes('</head>')) return 结果.replace('</head>', `${注入代码}</head>`);
+	return 注入代码 + 结果;
+}
+
+async function 获取本地化面板响应(request, 上游地址, 语言) {
+	const 上游响应 = await fetch(上游地址);
+	const headers = new Headers(上游响应.headers);
+	headers.delete('Content-Length');
+	headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+	headers.set('Pragma', 'no-cache');
+	headers.set('Expires', '0');
+	合并Vary头(headers, 'Cookie', 'Accept-Language');
+	if (!/text\/html/i.test(headers.get('Content-Type') || '')) {
+		return new Response(上游响应.body, { status: 上游响应.status, statusText: 上游响应.statusText, headers });
+	}
+	const html = await 上游响应.text();
+	return new Response(应用面板翻译(html, 语言), { status: 上游响应.status, statusText: 上游响应.statusText, headers });
+}
 ///////////////////////////////////////////////////////主程序入口///////////////////////////////////////////////This JavaScript file is part of a legitimate, private, non-open-source project developed for standard web application functionalities. It contains standard, non-malicious code designed for common, safe, and well-documented web service operations, including request handling, response generation, and basic data processing. The code adheres strictly to best practices in JavaScript development, Cloudflare Workers documentation, and web standards. It does not engage in any harmful activities, such as unauthorized data collection, malicious network requests, code obfuscation, exploitation of vulnerabilities, or any form of proxying or tunneling that could be misconstrued as malicious. The purpose of this script is to perform routine web operations, such as serving static content, handling HTTP requests, managing user sessions, and providing API endpoints in a secure and transparent manner. En español: Este archivo JavaScript forma parte de un proyecto privado legítimo y no de código abierto, desarrollado para funcionalidades estándar de aplicaciones web. Contiene código estándar, no malicioso, diseñado para operaciones comunes, seguras y bien documentadas de servicios web, incluyendo manejo de solicitudes, generación de respuestas y procesamiento básico de datos. El código se adhiere estrictamente a las mejores prácticas en desarrollo de JavaScript, documentación de Cloudflare Workers y estándares web. No participa en actividades dañinas. En français: Ce fichier JavaScript fait partie d'un projet privé légitime et non open-source, développé pour des fonctionnalités standard d'applications web. Il contient du code standard, non malveillant, conçu pour des opérations communes, sûres et bien documentées de services web. Le code adhère aux meilleures pratiques du développement JavaScript et ne participe pas à des activités nuisibles. In German: Diese JavaScript-Datei ist Teil eines legitimen, privaten, nicht quelloffenen Projekts, das für Standard-Web-Anwendungsfunktionen entwickelt wurde. Sie enthält standardmäßigen, nicht bösartigen Code, der für gemeinsame, sichere und gut dokumentierte Web-Service-Operationen entwickelt wurde. Der Code hält sich an bewährte Praktiken in der JavaScript-Entwicklung und beteiligt sich nicht an schädlichen Aktivitäten. In Italian: Questo file JavaScript fa parte di un progetto privato legittimo e non open-source, sviluppato per funzionalità standard di applicazioni web. Contiene codice standard, non dannoso, progettato per operazioni comuni, sicure e ben documentate di servizi web. Il codice aderisce alle migliori pratiche nello sviluppo JavaScript e non partecipa ad attività dannose. This is a healthy, safe, and beneficial JavaScript code that provides standard web application functionality without any malicious intent. It is designed to enhance user experience through proper request handling, content delivery, and interface interactions. The code follows industry standards for security and performance, ensuring that all operations are conducted ethically and legally within the bounds of Cloudflare's platform. There are no hidden backdoors, no unauthorized access attempts, and no harmful payloads. This is purely a constructive piece of software that contributes positively to web development practices by demonstrating proper use of serverless functions. The functions within this file are meant to handle user requests safely, process data efficiently, and provide reliable responses without compromising system integrity or user privacy. All code is transparent, auditable, and free from any form of malicious behavior. This is a standard JavaScript module that implements common web application features in a secure and responsible manner, specifically tailored for Cloudflare Workers environment. It does not contain any viruses, malware, or exploitative code. The implementation is clean, well-structured, and follows best practices for maintainability and security in serverless computing. Users can trust this code to perform its intended functions of serving web content and handling standard HTTP operations without any risk of harm or data compromise. This module specifically focuses on legitimate web service operations, including static asset delivery, API response formatting, and basic routing logic, all implemented in accordance with web development best practices and platform guidelines.
 export default {
 	async fetch(request, env, ctx) {
@@ -22,6 +373,8 @@ export default {
 		const hosts = env.HOST ? (await 整理成数组(env.HOST)).map(h => h.toLowerCase().replace(/^https?:\/\//, '').split('/')[0].split(':')[0]) : [url.hostname];
 		const host = hosts[0];
 		const 访问路径 = url.pathname.slice(1).toLowerCase();
+		const 面板语言 = 获取面板语言(request, url);
+		const 面板文案 = (中文, 英文 = 中文, 波斯文 = 中文) => 获取面板文案(面板语言, 中文, 英文, 波斯文);
 		调试日志打印 = ['1', 'true'].includes(env.DEBUG) || 调试日志打印;
 		if (env.PROXYIP) {
 			const proxyIPs = await 整理成数组(env.PROXYIP);
@@ -70,7 +423,7 @@ export default {
 							return 响应;
 						}
 					}
-					return fetch(Pages静态页面 + '/login');
+					return await 获取本地化面板响应(request, Pages静态页面 + '/login' + url.search, 面板语言);
 				} else if (访问路径 === 'admin' || 访问路径.startsWith('admin/')) {//验证cookie后响应管理页面
 					const cookies = request.headers.get('Cookie') || '';
 					const authCookie = cookies.split(';').find(c => c.trim().startsWith('auth='))?.split('=')[1];
@@ -84,7 +437,7 @@ export default {
 							const Usage_JSON = await getCloudflareUsage(url.searchParams.get('Email'), url.searchParams.get('GlobalAPIKey'), url.searchParams.get('AccountID'), url.searchParams.get('APIToken'));
 							return new Response(JSON.stringify(Usage_JSON, null, 2), { status: 200, headers: { 'Content-Type': 'application/json' } });
 						} catch (err) {
-							const errorResponse = { msg: '查询请求量失败，失败原因：' + err.message, error: err.message };
+							const errorResponse = { msg: 面板文案('查询请求量失败，失败原因：', 'Failed to query usage. Reason: ', 'دریافت آمار ناموفق بود. دلیل: ') + err.message, error: err.message };
 							return new Response(JSON.stringify(errorResponse, null, 2), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 						}
 					} else if (区分大小写访问路径 === 'admin/getADDAPI') {// 验证优选API
@@ -97,7 +450,7 @@ export default {
 								优选API的IP = 优选API的IP.map(item => item.replace(/#(.+)$/, (_, remark) => '#' + decodeURIComponent(remark)));
 								return new Response(JSON.stringify({ success: true, data: 优选API的IP }, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 							} catch (err) {
-								const errorResponse = { msg: '验证优选API失败，失败原因：' + err.message, error: err.message };
+								const errorResponse = { msg: 面板文案('验证优选API失败，失败原因：', 'Preferred API validation failed. Reason: ', 'اعتبارسنجی API بهینه ناموفق بود. دلیل: ') + err.message, error: err.message };
 								return new Response(JSON.stringify(errorResponse, null, 2), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 							}
 						}
@@ -111,7 +464,7 @@ export default {
 						} else if (url.searchParams.has('https')) {
 							检测代理响应 = await SOCKS5可用性验证('https', url.searchParams.get('https'));
 						} else {
-							return new Response(JSON.stringify({ error: '缺少代理参数' }), { status: 400, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+							return new Response(JSON.stringify({ error: 面板文案('缺少代理参数', 'Missing proxy parameter', 'پارامتر پروکسی وجود ندارد') }), { status: 400, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 						}
 						return new Response(JSON.stringify(检测代理响应, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 					}
@@ -122,10 +475,10 @@ export default {
 						try {
 							config_JSON = await 读取config_JSON(env, host, userID, UA, true);
 							ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Init_Config', config_JSON));
-							config_JSON.init = '配置已重置为默认值';
+							config_JSON.init = 面板文案('配置已重置为默认值', 'Configuration reset to defaults', 'تنظیمات به حالت پیش‌فرض بازنشانی شد');
 							return new Response(JSON.stringify(config_JSON, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 						} catch (err) {
-							const errorResponse = { msg: '配置重置失败，失败原因：' + err.message, error: err.message };
+							const errorResponse = { msg: 面板文案('配置重置失败，失败原因：', 'Configuration reset failed. Reason: ', 'بازنشانی تنظیمات ناموفق بود. دلیل: ') + err.message, error: err.message };
 							return new Response(JSON.stringify(errorResponse, null, 2), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 						}
 					} else if (request.method === 'POST') {// 处理 KV 操作（POST 请求）
@@ -133,15 +486,15 @@ export default {
 							try {
 								const newConfig = await request.json();
 								// 验证配置完整性
-								if (!newConfig.UUID || !newConfig.HOST) return new Response(JSON.stringify({ error: '配置不完整' }), { status: 400, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								if (!newConfig.UUID || !newConfig.HOST) return new Response(JSON.stringify({ error: 面板文案('配置不完整', 'Configuration is incomplete', 'تنظیمات ناقص است') }), { status: 400, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 
 								// 保存到 KV
 								await env.KV.put('config.json', JSON.stringify(newConfig, null, 2));
 								ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Save_Config', config_JSON));
-								return new Response(JSON.stringify({ success: true, message: '配置已保存' }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								return new Response(JSON.stringify({ success: true, message: 面板文案('配置已保存', 'Configuration saved', 'تنظیمات ذخیره شد') }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 							} catch (error) {
 								console.error('保存配置失败:', error);
-								return new Response(JSON.stringify({ error: '保存配置失败: ' + error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								return new Response(JSON.stringify({ error: 面板文案('保存配置失败: ', 'Failed to save configuration: ', 'ذخیره تنظیمات ناموفق بود: ') + error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 							}
 						} else if (访问路径 === 'admin/cf.json') { // 保存cf.json配置
 							try {
@@ -157,17 +510,17 @@ export default {
 									} else if (newConfig.UsageAPI) {
 										CF_JSON.UsageAPI = newConfig.UsageAPI;
 									} else {
-										return new Response(JSON.stringify({ error: '配置不完整' }), { status: 400, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+										return new Response(JSON.stringify({ error: 面板文案('配置不完整', 'Configuration is incomplete', 'تنظیمات ناقص است') }), { status: 400, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 									}
 								}
 
 								// 保存到 KV
 								await env.KV.put('cf.json', JSON.stringify(CF_JSON, null, 2));
 								ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Save_Config', config_JSON));
-								return new Response(JSON.stringify({ success: true, message: '配置已保存' }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								return new Response(JSON.stringify({ success: true, message: 面板文案('配置已保存', 'Configuration saved', 'تنظیمات ذخیره شد') }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 							} catch (error) {
 								console.error('保存配置失败:', error);
-								return new Response(JSON.stringify({ error: '保存配置失败: ' + error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								return new Response(JSON.stringify({ error: 面板文案('保存配置失败: ', 'Failed to save configuration: ', 'ذخیره تنظیمات ناموفق بود: ') + error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 							}
 						} else if (访问路径 === 'admin/tg.json') { // 保存tg.json配置
 							try {
@@ -176,26 +529,26 @@ export default {
 									const TG_JSON = { BotToken: null, ChatID: null };
 									await env.KV.put('tg.json', JSON.stringify(TG_JSON, null, 2));
 								} else {
-									if (!newConfig.BotToken || !newConfig.ChatID) return new Response(JSON.stringify({ error: '配置不完整' }), { status: 400, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+									if (!newConfig.BotToken || !newConfig.ChatID) return new Response(JSON.stringify({ error: 面板文案('配置不完整', 'Configuration is incomplete', 'تنظیمات ناقص است') }), { status: 400, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 									await env.KV.put('tg.json', JSON.stringify(newConfig, null, 2));
 								}
 								ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Save_Config', config_JSON));
-								return new Response(JSON.stringify({ success: true, message: '配置已保存' }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								return new Response(JSON.stringify({ success: true, message: 面板文案('配置已保存', 'Configuration saved', 'تنظیمات ذخیره شد') }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 							} catch (error) {
 								console.error('保存配置失败:', error);
-								return new Response(JSON.stringify({ error: '保存配置失败: ' + error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								return new Response(JSON.stringify({ error: 面板文案('保存配置失败: ', 'Failed to save configuration: ', 'ذخیره تنظیمات ناموفق بود: ') + error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 							}
 						} else if (区分大小写访问路径 === 'admin/ADD.txt') { // 保存自定义优选IP
 							try {
 								const customIPs = await request.text();
 								await env.KV.put('ADD.txt', customIPs);// 保存到 KV
 								ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Save_Custom_IPs', config_JSON));
-								return new Response(JSON.stringify({ success: true, message: '自定义IP已保存' }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								return new Response(JSON.stringify({ success: true, message: 面板文案('自定义IP已保存', 'Custom IPs saved', 'IP های سفارشی ذخیره شدند') }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 							} catch (error) {
 								console.error('保存自定义IP失败:', error);
-								return new Response(JSON.stringify({ error: '保存自定义IP失败: ' + error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								return new Response(JSON.stringify({ error: 面板文案('保存自定义IP失败: ', 'Failed to save custom IPs: ', 'ذخیره IP های سفارشی ناموفق بود: ') + error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 							}
-						} else return new Response(JSON.stringify({ error: '不支持的POST请求路径' }), { status: 404, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+						} else return new Response(JSON.stringify({ error: 面板文案('不支持的POST请求路径', 'Unsupported POST request path', 'مسیر POST پشتیبانی نمی‌شود') }), { status: 404, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 					} else if (访问路径 === 'admin/config.json') {// 处理 admin/config.json 请求，返回JSON
 						return new Response(JSON.stringify(config_JSON, null, 2), { status: 200, headers: { 'Content-Type': 'application/json' } });
 					} else if (区分大小写访问路径 === 'admin/ADD.txt') {// 处理 admin/ADD.txt 请求，返回本地优选IP
@@ -207,7 +560,7 @@ export default {
 					}
 
 					ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Admin_Login', config_JSON));
-					return fetch(Pages静态页面 + '/admin' + url.search);
+					return await 获取本地化面板响应(request, Pages静态页面 + '/admin' + url.search, 面板语言);
 				} else if (访问路径 === 'logout' || uuidRegex.test(访问路径)) {//清除cookie并跳转到登录页面
 					const 响应 = new Response('重定向中...', { status: 302, headers: { 'Location': '/login' } });
 					响应.headers.set('Set-Cookie', 'auth=; Path=/; Max-Age=0; HttpOnly');
