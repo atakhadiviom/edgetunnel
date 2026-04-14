@@ -493,16 +493,6 @@ echo "Using KV namespace id ${KV_NAMESPACE_ID}"
 
 cp "${WORKER_ENTRY}" "${ASSETS_DIR}/_worker.js"
 
-cat > "${CONFIG_PATH}" <<EOF
-name = "$(write_toml_string "${PROJECT_NAME}")"
-compatibility_date = "$(write_toml_string "${COMPATIBILITY_DATE}")"
-pages_build_output_dir = "site"
-
-[[kv_namespaces]]
-binding = "KV"
-id = "$(write_toml_string "${KV_NAMESPACE_ID}")"
-EOF
-
 echo
 echo "Uploading Pages secrets..."
 put_pages_secret "ADMIN" "${ADMIN_SECRET}"
@@ -516,6 +506,16 @@ put_pages_secret "OFF_LOG" "${OFF_LOG_VALUE}"
 put_pages_secret "BEST_SUB" "${BEST_SUB_VALUE}"
 put_pages_secret "HOST" "${HOST_VALUE}"
 put_pages_secret "PATH" "${PATH_VALUE}"
+
+cat > "${CONFIG_PATH}" <<EOF
+name = "$(write_toml_string "${PROJECT_NAME}")"
+compatibility_date = "$(write_toml_string "${COMPATIBILITY_DATE}")"
+pages_build_output_dir = "site"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "$(write_toml_string "${KV_NAMESPACE_ID}")"
+EOF
 
 echo
 echo "Deploying to Cloudflare Pages..."
